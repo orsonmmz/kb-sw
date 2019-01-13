@@ -1,5 +1,6 @@
 #include "asf.h"
 #include "buttons.h"
+#include "lcd.h"
 
 /** Set default LED blink period to 250ms*3 */
 #define DEFAULT_LED_FREQ   4
@@ -117,6 +118,7 @@ static void init_system(void)
     configure_console();
 
     btn_init();
+    lcd_init();
 }
 
 /**
@@ -137,5 +139,6 @@ int main(void)
     /* Loop forever */
     for (;;) {
         pio_toggle_pin(PIO_PA7_IDX);
+        lcd_write();
     }
 }

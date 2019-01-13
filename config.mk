@@ -54,12 +54,14 @@ TARGET_SRAM = sam4s_hello_sram.elf
 CSRCS = \
        main.c \
        buttons.c \
+       lcd.c \
        common/services/clock/sam4s/sysclk.c               \
        sam/drivers/pio/pio.c                              \
        sam/drivers/pio/pio_handler.c                      \
        sam/drivers/pmc/pmc.c                              \
        sam/drivers/pmc/sleep.c                            \
        sam/drivers/tc/tc.c                                \
+       sam/drivers/twi/twi.c                              \
        sam/drivers/uart/uart.c                            \
        sam/drivers/wdt/wdt.c                              \
        sam/utils/cmsis/sam4s/source/templates/gcc/startup_sam4s.c \
@@ -77,6 +79,7 @@ INC_PATH = \
        sam/drivers/pio                                    \
        sam/drivers/pmc                                    \
        sam/drivers/tc                                     \
+       sam/drivers/twi                                    \
        sam/drivers/uart                                   \
        sam/drivers/wdt                                    \
        sam/utils                                          \
