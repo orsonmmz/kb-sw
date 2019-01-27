@@ -1,6 +1,8 @@
 #include "asf.h"
 #include "buttons.h"
 #include "lcd.h"
+#include "SSD1306_commands.h"
+
 
 /** Set default LED blink period to 250ms*3 */
 #define DEFAULT_LED_FREQ   4
@@ -126,9 +128,41 @@ static void init_system(void)
  *
  *  \return Unused (ANSI-C compatibility).
  */
+
+uint8_t cmds[1]={SSD1306_DISPLAYALLON};
+uint8_t mode[3]={0x00, SSD1306_MEMORYMODE, SSD1306_HORIZONTAL};
+uint8_t columnAddress[4]={0x00, SSD1306_COLUMNADDR, 0x00, 0x10};
+uint8_t pageAddress[]={0xB4, SSD1306_SETLOWCOLUMN, 0x03,SSD1306_SETHIGHCOLUMN,0x16};
+uint8_t address[]={SSD1306_COLUMNADDR, 0x00, 0x00, SSD1306_PAGEADDR, 0x00, 0x00};
+
+uint8_t init[] = {0x00,
+	0xAE,		// display off
+	0xA8, 0x3F,	// mux ratio
+	0xD3, 0x00,	// display offset
+	0x40,		// display start line
+	0xA0,		// segment re-map
+	0xC0, 		// com output scan direction
+	0xDA, 0x12, // com pins hw configuration
+	0x81, 0x7F, // contrast control
+	0xA4,		// disable entire display on
+	0xA6, 		// normal display
+	0xD5, 0x80, // osc frequency
+	0x8D, 0x14, // en charge pump regulator
+	0xAF, 0xB1		// display on
+};
+uint8_t init2[] = {0x00,0xae,0xa8,0x3f,0xd3,0x00,0x40,0xa0,0xc0,
+	      0xda,0x12,0x81,0xff,0xa4,0xa6,0xd5,0x80,0x8d,0x14,
+	0xaf,0x20,0x00};
+
+
+uint8_t buffer[128]={0xff,};
+
 int main(void)
 {
-    /* Initialize the SAM system */
+//	uint8_t buffer[1*51+1]={0xff,};
+//	buffer[0]=0x40;
+
+	/* Initialize the SAM system */
     init_system();
 
     /* Configure timer ISR to fire regularly */
@@ -136,9 +170,14 @@ int main(void)
 
     uart_write(UART0, 'U');
 
+    uint8_t siema[5]= "siema";
+    SSD1306_setString(0,0,siema, 5,1);
+
+    SSD1306_drawBitmap();
+
     /* Loop forever */
     for (;;) {
         pio_toggle_pin(PIO_PA7_IDX);
-        lcd_write();
+        for(uint16_t i = 0; i < 65535; ++i) __NOP;
     }
 }
