@@ -13,8 +13,6 @@
 /** LED blink period */
 static volatile uint32_t led_blink_period = 0;
 
-extern uint8_t * displayBuffer;
-
 /**
  *  \brief Handler for System Tick interrupt.
  *
@@ -122,7 +120,7 @@ static void init_system(void)
     configure_console();
 
     btn_init();
-    lcd_init();
+    SSD1306_init();
 }
 
 
@@ -146,12 +144,12 @@ int main(void)
 ////
 //	siema[5]= "abcde";
 
-//    if(!SSD1306_isBusy())
-//    {
+    if(!SSD1306_isBusy())
+    {
 		SSD1306_setString(0,0,siema, 5,1);
-		SSD1306_drawPageDMA(0,displayBuffer);
-		//SSD1306_drawBitmapDMA();
-//    }
+		SSD1306_setLine(15, 15, 20, 60,0);
+		SSD1306_drawBitmapDMA();
+    }
 
     /* Loop forever */
     for (;;) {
