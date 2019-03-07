@@ -168,17 +168,11 @@ int main(void)
     ioc_set_handler(ioc_show, samples);
     ioc_fetch(samples, 32);
 
-    uint8_t siema[5]= "siema";
-//    SSD1306_setString(0,0,siema, 5,1);
-//    SSD1306_drawBitmap();
-////
-//	siema[5]= "abcde";
-
     if(!SSD1306_isBusy())
     {
-		SSD1306_setString(0,0,siema, 5,1);
-		SSD1306_setLine(15, 15, 20, 60,0);
-		SSD1306_drawBitmapDMA();
+        SSD1306_setString(0, 0, "KiCon 2019", 10, 1);
+        SSD1306_setLine(15, 15, 20, 60, 0);
+        SSD1306_drawBitmapDMA();
     }
 
     /* Loop forever */
