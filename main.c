@@ -181,6 +181,7 @@ int main(void)
             }
         }
 
+        la_send_data();
         pio_toggle_pin(PIO_PA7_IDX);
     }
 }
