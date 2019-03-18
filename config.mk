@@ -55,6 +55,7 @@ CSRCS = \
        main.c \
        buttons.c \
        lcd.c \
+       scope.c \
        common/services/clock/sam4s/sysclk.c               \
        sam/drivers/pdc/pdc.c                              \
        sam/drivers/pio/pio.c                              \
