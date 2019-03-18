@@ -6,6 +6,7 @@
 #include "udi_cdc.h"
 #include "commands.h"
 #include "lcd.h"
+#include "gfx.h"
 #include "SSD1306_commands.h"
 
 
@@ -158,12 +159,8 @@ int main(void)
 
     uart_write(UART0, 'U');
 
-    if(!SSD1306_isBusy())
-    {
-        SSD1306_setString(0, 0, "KiCon 2019", 10, 1);
-        SSD1306_setLine(15, 15, 20, 60, 0);
-        SSD1306_drawBitmapDMA();
-    }
+    SSD1306_drawBitmap(0, 0, kicon_logo, 128, 32);
+    SSD1306_drawBufferDMA();
 
     /* Loop forever */
     for (;;) {
