@@ -23,6 +23,12 @@ import binascii
 import commands_def as cmd_defs
 
 class KiconBadge:
+    BLACK = 0
+    WHITE = 1
+
+    LCD_WIDTH = 128
+    LCD_HEIGHT = 64
+
     def __init__(self, port):
         self._serial = None
         self._serial = serial.Serial(port, 115200, timeout=0.1)   # TODO baud?
