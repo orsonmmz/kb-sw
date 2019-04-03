@@ -31,17 +31,24 @@
 #include <limits.h>
 
 // Samples buffer
-#define LA_BUFFER_SIZE     32768
+#define LA_BUFFER_SIZE     65536
 static uint8_t la_buffer[LA_BUFFER_SIZE];
+static const uint8_t *la_buffer_end = &la_buffer[LA_BUFFER_SIZE - 1];
+
+// Pointer to the acquired buffer
+static uint8_t *la_acq_start;
+// Number of the acquired samples
 static uint32_t la_acq_size;
+
 static uint8_t la_chan_enabled;
 static la_target_t la_target = LA_NONE;
 
-// Logic analyzer settings
+// Acquisition settings
 static uint8_t la_trigger_mask = 0;
 static uint8_t la_trigger_val = 0;
 static uint32_t la_read_cnt = 0;
 static uint32_t la_delay_cnt = 0;
+static uint32_t la_sump_active = 0;
 
 // Acquisition finished handler
 static void la_acq_finished(void* param);
@@ -56,9 +63,16 @@ static volatile enum { IDLE, RUNNING, ACQUIRED } la_state = IDLE;
             | (val & 0x20) << 1 \
             | (val & 0x10) << 3)
 
-static void la_fix_channels(void) {
-    for(unsigned int i = 0; i < la_acq_size; ++i) {
-        la_buffer[i] = LA_FIX_ORDER(la_buffer[i]);
+static void la_fix_channels(uint32_t offset, uint32_t size) {
+    uint8_t* buf_ptr = &la_buffer[offset];
+
+    for(unsigned int i = 0; i < size; ++i) {
+        *buf_ptr = LA_FIX_ORDER(*buf_ptr);
+
+        // Buffer wrapping
+        if (++buf_ptr > la_buffer_end) {
+            buf_ptr = la_buffer;
+        }
     }
 }
 
@@ -67,16 +81,16 @@ static void la_fix_channels(void) {
 // trigger. Will return the sample index or UINT_MAX if nothing found.
 // This function works with samples which do not have the order fixed
 // (see LA_FIX_ORDER macro)
-static uint32_t la_find_trigger_unfixed(void) {
+static uint32_t la_find_trigger_unfixed(const uint8_t *buf, uint32_t size) {
     if (la_trigger_mask == 0) {
         return 0;
     }
 
     const uint8_t mask = LA_FIX_ORDER(la_trigger_mask);
     const uint8_t val = LA_FIX_ORDER(la_trigger_val);
-    const uint8_t *buf_ptr = la_buffer;
+    const uint8_t *buf_ptr = buf;
 
-    for (uint32_t i = 0; i < la_acq_size; ++i) {
+    for (uint32_t i = 0; i < size; ++i) {
         if ((*buf_ptr & mask) == val) {
             return i;
         }
@@ -90,17 +104,17 @@ static uint32_t la_find_trigger_unfixed(void) {
 
 void la_init(void) {
     la_acq_size = LA_BUFFER_SIZE;
+    la_acq_start = la_buffer;
     la_chan_enabled = 0xFF;
     ioc_set_clock(F1MHZ);
-    ioc_set_handler(la_acq_finished, la_buffer);
+    ioc_set_handler(la_acq_finished, la_acq_start);
 }
 
 
 void la_trigger(void) {
-    /*memset(la_buffer, 0x00, sizeof(la_buffer));*/
     while(ioc_busy());
     la_state = RUNNING;
-    ioc_fetch(la_buffer, la_acq_size);
+    ioc_fetch(la_acq_start, la_acq_size);
 }
 
 
@@ -140,7 +154,11 @@ static void la_display_acq(uint32_t offset) {
         for(int x = 0; x < LCD_WIDTH; ++x) {
             *page_ptr = (*buf_ptr & chan_mask) ? 0x02 : 0x80;
             ++page_ptr;
-            ++buf_ptr;
+
+            // Buffer wrapping
+            if (++buf_ptr > la_buffer_end) {
+                buf_ptr = la_buffer;
+            }
         }
 
         while(SSD1306_isBusy());
@@ -192,6 +210,20 @@ static clock_freq_t la_get_clock(int prescaler_100M) {
 }
 
 
+static uint32_t power2_ceil(uint32_t x) {
+    if (x <= 1)
+        return 1;
+
+    int power = 2;
+    --x;
+
+    while (x >>= 1)
+        power <<= 1;
+
+    return power;
+}
+
+
 /* ID command response */
 static const uint8_t SUMP_ID_RESP[] = "1ALS";
 /* Device metadata */
@@ -199,7 +231,7 @@ static const uint8_t SUMP_METADATA_RESP[] =
 //  token  value
     "\x01" "KiCon-Badge\x00"   // device name
     "\x20" "\x00\x00\x00\x08"  // number of channels
-    "\x21" "\x00\x00\x80\x00"  // sample memory available [bytes] = 32768
+    "\x21" "\x00\x01\x00\x00"  // sample memory available [bytes] = 65536
     "\x23" "\x02\xfa\xf0\x80"  // maximum sampling rate [Hz] = 50 MHz
     "\x24" "\x00\x00\x00\x00"  // protocol version
     ;
@@ -214,6 +246,9 @@ int cmd_sump(const uint8_t* cmd, unsigned int len)
                 break;
 
             case RUN:
+                la_acq_start = la_buffer;
+                la_acq_size = min(power2_ceil(la_read_cnt), LA_BUFFER_SIZE / 2);
+                la_sump_active = 1;
                 la_trigger();
                 break;
 
@@ -276,10 +311,25 @@ int cmd_sump(const uint8_t* cmd, unsigned int len)
 }
 
 
+static void la_usb_send(uint32_t offset, uint32_t size) {
+    if (offset + size <= LA_BUFFER_SIZE) {
+        udi_cdc_write_buf(&la_buffer[offset], size);
+    } else {
+        unsigned int firstChunk = LA_BUFFER_SIZE - offset;
+        unsigned int secondChunk = size - firstChunk;
+        udi_cdc_write_buf(&la_buffer[offset], firstChunk);
+        udi_cdc_write_buf(la_buffer, secondChunk);
+    }
+}
+
+
 void app_la_usb_func(void) {
     const uint8_t *resp;
     unsigned int resp_len;
     int processed;
+
+    la_trigger_mask = 0;
+    la_trigger_val = 0;
 
     la_set_target(LA_USB);
     cmd_set_mode(CMD_SUMP);
@@ -288,6 +338,9 @@ void app_la_usb_func(void) {
     SSD1306_clearBufferFull();
     SSD1306_setString(5, 3, "Logic Analyzer (USB)", 20, WHITE);
     SSD1306_drawBufferDMA();
+
+    uint32_t trig_offset = UINT_MAX;
+    uint32_t trig_samples = 0;
 
     while(btn_state() != BUT_LEFT) {
         /* process commands */
@@ -305,19 +358,47 @@ void app_la_usb_func(void) {
             }
         }
 
+
         if (la_state == ACQUIRED) {
+            /* acquisition has finished */
             la_state = IDLE;
 
-            uint32_t offset = la_find_trigger_unfixed();
+            if (!la_sump_active)
+                return;
 
-            if (offset < la_acq_size) {
-                /* trigger detected, send the buffer */
-                // TODO handle read count & delay count
-                // TODO handle the trigger
-                la_fix_channels();
-                udi_cdc_write_buf((uint8_t*) &la_buffer[offset], la_acq_size);
-            } else {
+            if (trig_offset == UINT_MAX) {
+                /* store the current acquisition pointer */
+                uint8_t *last_acq = la_acq_start;
+
+                /* trigger has not been found yet,so start the next acquisition */
+                la_acq_start += la_acq_size;
+
+                if (&la_acq_start[la_acq_size] > la_buffer_end)
+                    la_acq_start = la_buffer;
+
                 la_trigger();
+
+
+                trig_offset = la_find_trigger_unfixed(last_acq, la_acq_size);
+
+                if (trig_offset != UINT_MAX) {
+                    // TODO decrement the offset by 8, so the triggering edge is visible
+                    /* trigger has just been found */
+                    trig_offset += (last_acq - la_buffer);
+                    trig_samples += (la_acq_size - trig_offset);
+                }
+            } else if (trig_samples < la_read_cnt) {
+                /* trigger has been found, but still gathering samples */
+                trig_samples += la_acq_size;
+            }
+
+
+            if (trig_offset != UINT_MAX && trig_samples >= la_read_cnt) {
+                /* got all the samples, draw the results */
+                la_fix_channels(trig_offset, la_read_cnt);
+                la_usb_send(trig_offset, la_read_cnt);
+                trig_offset = UINT_MAX;
+                trig_samples = 0;
             }
         }
     }
@@ -349,24 +430,58 @@ void app_la_lcd_func(void) {
     }
 
     la_trigger_val = menu_la_lcd_trigger_level.val ? la_trigger_mask : 0;
+    la_acq_start = la_buffer;
+    la_acq_size = 2 * LCD_WIDTH;    /* always the same acquisition size */
+    la_read_cnt = LCD_WIDTH;        /* number of requested samples */
+
+    uint32_t trig_offset = UINT_MAX;
+    uint32_t trig_samples = 0;
 
     /* start acquisition */
     la_trigger();
 
     while(btn_state() != BUT_LEFT) {
-        if (la_state == ACQUIRED) {
-            la_state = IDLE;
+        if (la_state != ACQUIRED)
+            continue;
 
-            uint32_t offset = la_find_trigger_unfixed();
+        /* acquisition has finished */
+        la_state = IDLE;
 
-            if (offset < la_acq_size) {
-                /* trigger detected, draw the results */
-                la_fix_channels();
-                la_display_acq(offset);
+        /* store the current acquisition pointer */
+        uint8_t *last_acq = la_acq_start;
+
+        /* start the next acquisition and process the acquired data in the meantime */
+        la_acq_start += la_acq_size;
+
+        if (&la_acq_start[la_acq_size] > la_buffer_end)
+            la_acq_start = la_buffer;
+
+        la_trigger();
+
+
+        if (trig_offset == UINT_MAX) {
+            /* trigger has not been found yet */
+            trig_offset = la_find_trigger_unfixed(last_acq, la_acq_size);
+
+            if (trig_offset != UINT_MAX) {
+                // TODO decrement the offset by 8, so the triggering edge is visible
+                /* trigger has just been found */
+                trig_offset += (last_acq - la_buffer);
+                trig_samples += (la_acq_size - trig_offset);
             }
+        } else if (trig_samples < la_read_cnt) {
+            /* trigger has been found, but still gathering samples */
+            trig_samples += la_acq_size;
+        }
 
-            /* keep retriggering */
-            la_trigger();
+
+        if (trig_offset != UINT_MAX && trig_samples >= la_read_cnt) {
+            /* got all the samples, draw the results */
+            la_fix_channels(trig_offset, la_read_cnt);
+            la_display_acq(trig_offset);
+            trig_offset = UINT_MAX;
+            trig_samples = 0;
+            la_sump_active = 0;
         }
     }
 
