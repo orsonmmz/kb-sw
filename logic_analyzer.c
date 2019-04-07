@@ -31,6 +31,8 @@
 #include <string.h>
 #include <limits.h>
 
+#define LA_CHANNELS 8
+
 // Samples buffer
 #define LA_BUFFER_SIZE     (BUFFER_SIZE)
 static uint8_t * const la_buffer = buffer.u8;
@@ -108,12 +110,6 @@ void la_init(void) {
     la_chan_enabled = 0xFF;
     ioc_set_clock(F1MHZ);
     ioc_set_handler(la_acq_finished);
-}
-
-
-void la_set_trigger(uint8_t trigger_mask, uint8_t trigger_val) {
-    la_trigger_mask = trigger_mask;
-    la_trigger_val = trigger_val;
 }
 
 
@@ -401,13 +397,11 @@ void app_la_usb_func(void) {
 void app_la_lcd_func(void) {
     /* configure the logic analyzer */
     switch (menu_la_lcd_sampling_freq.val) {
-        case 0: ioc_set_clock(F50MHZ); break;
-        case 1: ioc_set_clock(F20MHZ); break;
-        case 2: ioc_set_clock(F10MHZ); break;
-        case 3: ioc_set_clock(F5MHZ); break;
-        case 4: ioc_set_clock(F2MHZ); break;
-        case 5: ioc_set_clock(F1MHZ); break;
-        case 6: ioc_set_clock(F500KHZ); break;
+        case 0: ioc_set_clock(F10MHZ); break;
+        case 1: ioc_set_clock(F5MHZ); break;
+        case 2: ioc_set_clock(F2MHZ); break;
+        case 3: ioc_set_clock(F1MHZ); break;
+        case 4: ioc_set_clock(F500KHZ); break;
     }
 
     if (menu_la_lcd_trigger_input.val == 0) {
