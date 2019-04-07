@@ -33,19 +33,6 @@ typedef enum { LA_NONE, LA_LCD, LA_USB } la_target_t;
 void la_init(void);
 
 /**
- * @brief Instant acquisition start.
- */
-void la_trigger(void);
-
-/**
- * @brief Selects destination for the acquired samples.
- *
- * Target "LCD" draws them on the display, whereas target "USB" transfers
- * them to a PC using SUMP protocol.
- */
-void la_set_target(la_target_t target);
-
-/**
  * @brief Configures the trigger.
  * @param trigger_mask selects which channels are used in the trigger matching.
  * @param trigger_val selects channel values that must match to activate the
