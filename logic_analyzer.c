@@ -27,13 +27,14 @@
 #include "sump.h"
 #include "apps_list.h"
 #include "settings_list.h"
+#include "buffer.h"
 #include <string.h>
 #include <limits.h>
 
 // Samples buffer
-#define LA_BUFFER_SIZE     65536
-static uint8_t la_buffer[LA_BUFFER_SIZE];
-static uint8_t const *la_buffer_last = &la_buffer[LA_BUFFER_SIZE - 1];
+#define LA_BUFFER_SIZE     (BUFFER_SIZE)
+static uint8_t * const la_buffer = buffer.u8;
+static uint8_t * const la_buffer_last = &buffer.u8[LA_BUFFER_SIZE - 1];
 
 // Enabled channels
 static uint8_t la_chan_enabled;
