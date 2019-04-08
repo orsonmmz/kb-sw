@@ -41,9 +41,12 @@ static uint8_t * const la_buffer_last = &buffer.u8[LA_BUFFER_SIZE - 1];
 // Enabled channels
 static uint8_t la_chan_enabled;
 
+// Trigger settings
+static uint8_t la_trigger_mask[4] = 0;
+static uint8_t la_trigger_val[4] = 0;
+static uint8_t la_trigger_stages = 0;
+
 // Acquisition settings
-static uint8_t la_trigger_mask = 0;
-static uint8_t la_trigger_val = 0;
 static uint32_t la_read_cnt = 0;
 static uint32_t la_delay_cnt = 0;
 
@@ -86,7 +89,7 @@ static void la_fix_channels(uint32_t offset, uint32_t size) {
 // This function works with samples which do not have the order fixed
 // (see LA_FIX_ORDER macro)
 static uint32_t la_find_trigger_unfixed(const uint8_t *buf, uint32_t size) {
-    if (la_trigger_mask == 0) {
+    if (la_trigger_stages == 0) {
         return 0;
     }
 
@@ -131,7 +134,7 @@ static void la_start_acq(void) {
         la_ioc_buffers[i].last = 0;
     }
 
-    if (la_trigger_mask == 0) {
+    if (la_trigger_stages == 0) {
         /* No triggers configured, it is a single-run acquisition */
         la_ioc_buffers[LA_IOC_BUFFERS_CNT - 1].last = 1;
     }
@@ -253,34 +256,32 @@ int cmd_sump(const uint8_t* cmd, unsigned int len)
 
         switch (cmd[0]) {
             case SET_TRG_MASK:
-                la_trigger_mask = (uint8_t)(arg & 0xff);
+                la_trigger_mask[0] = (uint8_t)(arg & 0xff);
+                la_trigger_stages
                 break;
+                aaaa
+            case SET_TRG_MASK2: la_trigger_mask[1] = (uint8_t)(arg & 0xff); break;
+            case SET_TRG_MASK3: la_trigger_mask[2] = (uint8_t)(arg & 0xff); break;
+            case SET_TRG_MASK4: la_trigger_mask[3] = (uint8_t)(arg & 0xff); break;
 
-            case SET_TRG_VAL:
-                la_trigger_val = (uint8_t)(arg & 0xff);
-                break;
+            case SET_TRG_VAL: la_trigger_val[0] = (uint8_t)(arg & 0xff); break;
+            case SET_TRG_VAL2: la_trigger_val[1] = (uint8_t)(arg & 0xff); break;
+            case SET_TRG_VAL3: la_trigger_val[2] = (uint8_t)(arg & 0xff); break;
+            case SET_TRG_VAL4: la_trigger_val[3] = (uint8_t)(arg & 0xff); break;
 
-            case SET_TRG_CFG:
-                break;
-
-            case SET_DIV:
-                ioc_set_clock(la_get_clock(arg));
-                break;
+            case SET_DIV: ioc_set_clock(la_get_clock(arg)); break;
 
             case SET_READ_DLY_CNT:
                 la_read_cnt = (uint16_t)((arg & 0xffff) + 1) * 4;
                 la_delay_cnt = (uint16_t)((arg >> 16) + 1) * 4;
                 break;
 
-            case SET_DELAY_COUNT:
-                la_delay_cnt = arg;
-                break;
+            case SET_DELAY_COUNT: la_delay_cnt = arg; break;
 
-            case SET_READ_COUNT:
-                la_read_cnt = arg;
-                break;
+            case SET_READ_COUNT: la_read_cnt = arg; break;
 
             // none of the flags has any meaning in this implementation
+            //case SET_TRG_CFG: break;
             //case SET_FLAGS: break;
         }
 

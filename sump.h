@@ -20,6 +20,9 @@
 #ifndef SUMP_H
 #define SUMP_H
 
+///> Number of supported SUMP trigger stages
+#define SUMP_TRIGGERS 4
+
 typedef enum {
 /* SUMP short commands (1 byte) */
 RESET               = 0x00,
